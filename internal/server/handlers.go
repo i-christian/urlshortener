@@ -38,7 +38,7 @@ func (s *State) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 
 	longUrl := r.FormValue("long_url")
 
-	encodedUrl, err := s.hashUrl(r, longUrl)
+	encodedUrl, err := s.createShortCode(r, longUrl)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -50,7 +50,6 @@ func (s *State) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 		"long_url", longUrl,
 	}
 
-	fmt.Println("writing to redis")
 	_, err = s.redisClient.HSet(r.Context(), fmt.Sprintf("urls:%s", encodedUrl), hashFields).Result()
 	if err != nil {
 		slog.Error("internal server error", "error", err.Error())
@@ -76,29 +75,29 @@ func (s *State) Latest(w http.ResponseWriter, r *http.Request) {
 	w.Write(respBody)
 }
 
-func (s *State) hashUrl(r *http.Request, longUrl string) (string, error) {
+func (s *State) createShortCode(r *http.Request, longUrl string) (string, error) {
 	urlHash := md5.Sum([]byte(longUrl))
 	var parsedBase62 string
 
 	// handle hash collisions
-	for idx := 5; ; idx++ {
-		slicedHash := urlHash[0:idx]
+	for idx := 5; idx < 8; idx++ {
+		slicedHash := urlHash[:idx]
 
 		// encode md5 hash to a base62 string
-		parsedBase62 = func() string {
-			var i big.Int
-			i.SetBytes(slicedHash)
-			return i.Text(62)
-		}()
+		var i big.Int
+		i.SetBytes(slicedHash)
+		parsedBase62 = i.Text(62)
 
 		res, err := s.redisClient.HGet(r.Context(), fmt.Sprintf("urls:%s", parsedBase62), "long_url").Result()
 		if err == redis.Nil {
-			break
+			return parsedBase62, nil
 		} else if res == longUrl {
-			return "", errors.New("long url already available in database")
+			return "", errors.New("long url already exists")
+		} else {
+			return "", errors.New("unexpected error occured")
 		}
 
 	}
 
-	return parsedBase62, nil
+	return "", errors.New("failed to create a shortCode")
 }
