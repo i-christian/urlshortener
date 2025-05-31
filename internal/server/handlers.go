@@ -5,12 +5,30 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"log/slog"
 	"math/big"
 	"net/http"
 
 	"github.com/redis/go-redis/v9"
 )
+
+// homePage handler renders the homepage
+func (s *State) Home(w http.ResponseWriter, r *http.Request) {
+	ts, err := template.ParseFiles("cmd/web/home.tmpl.html")
+	if err != nil {
+		slog.Error(err.Error())
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	err = ts.Execute(w, nil)
+	if err != nil {
+		slog.Error(err.Error())
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+}
 
 // GetLongUrl handler method accepts a url with an identifier key.
 // Retrieves long url from the database using the key pathvalue
