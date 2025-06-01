@@ -18,6 +18,8 @@ func (s *State) RegisterRouter() *router.Router {
 
 	r.Group(func(r *router.Router) {
 		r.Use(Recoverer)
+		r.Use(Logger)
+
 		r.HandleFunc("GET /{identifier}", s.GetLongUrl)
 		r.HandleFunc("POST /", s.ShortenUrl)
 	})
