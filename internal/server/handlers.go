@@ -5,30 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"math/big"
 	"net/http"
 
 	"github.com/redis/go-redis/v9"
 )
-
-// homePage handler renders the homepage
-func (s *State) Home(w http.ResponseWriter, r *http.Request) {
-	ts, err := template.ParseFiles("cmd/web/home.tmpl.html")
-	if err != nil {
-		slog.Error(err.Error())
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	err = ts.Execute(w, nil)
-	if err != nil {
-		slog.Error(err.Error())
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-}
 
 // GetLongUrl handler method accepts a url with an identifier key.
 // Retrieves long url from the database using the key pathvalue
@@ -38,7 +20,7 @@ func (s *State) GetLongUrl(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := s.redisClient.HGet(r.Context(), fmt.Sprintf("urls:%s", urlKey), "long_url").Result()
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		http.Error(w, "URL not found", http.StatusNotFound)
 		return
 	}
 
@@ -58,7 +40,7 @@ func (s *State) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 
 	encodedUrl, err := s.createShortCode(r, longUrl)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -76,13 +58,9 @@ func (s *State) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 		s.newKey = encodedUrl
 	}
 
-	w.WriteHeader(http.StatusCreated)
-}
-
-// Latest Method displays the latest created url result json
-func (s *State) Latest(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.redisClient.HGetAll(r.Context(), fmt.Sprintf("urls:%s", s.newKey)).Result()
+	resp, err := s.redisClient.HGetAll(r.Context(), fmt.Sprintf("urls:%s", encodedUrl)).Result()
 	if err != nil {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
 
